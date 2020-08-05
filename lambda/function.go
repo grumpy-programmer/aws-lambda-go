@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"time"
+	"fmt"
 
 	"github.com/aws/aws-lambda-go/lambda/messages"
 	"github.com/aws/aws-lambda-go/lambdacontext"
@@ -31,9 +32,12 @@ func (fn *Function) Ping(req *messages.PingRequest, response *messages.PingRespo
 
 // Invoke method try to perform a command given an InvokeRequest and an InvokeResponse
 func (fn *Function) Invoke(req *messages.InvokeRequest, response *messages.InvokeResponse) error {
+	logRequest(req)
+
 	defer func() {
 		if err := recover(); err != nil {
 			response.Error = lambdaPanicResponse(err)
+			logResponse(response)
 		}
 	}()
 
@@ -52,6 +56,7 @@ func (fn *Function) Invoke(req *messages.InvokeRequest, response *messages.Invok
 	if len(req.ClientContext) > 0 {
 		if err := json.Unmarshal(req.ClientContext, &lc.ClientContext); err != nil {
 			response.Error = lambdaErrorResponse(err)
+			logResponse(response)
 			return nil
 		}
 	}
@@ -64,9 +69,12 @@ func (fn *Function) Invoke(req *messages.InvokeRequest, response *messages.Invok
 	payload, err := fn.handler.Invoke(invokeContext, req.Payload)
 	if err != nil {
 		response.Error = lambdaErrorResponse(err)
+		logResponse(response)
 		return nil
 	}
 	response.Payload = payload
+
+	logResponse(response)
 	return nil
 }
 
@@ -92,4 +100,16 @@ func (fn *Function) withContext(ctx context.Context) *Function {
 	fn2.ctx = ctx
 
 	return fn2
+}
+
+func logRequest(request *messages.InvokeRequest) {
+	fmt.Printf(">>>> request payload: %s\n", string(request.Payload))
+	payload, _ := json.Marshal(request)
+	fmt.Printf(">>>> request: %s\n", string(payload))
+}
+
+func logResponse(response *messages.InvokeResponse) {
+	fmt.Printf("<<<< response payload: %s\n", string(response.Payload))
+	payload, _ := json.Marshal(response)
+	fmt.Printf("<<<< response: %s\n", string(payload))
 }
